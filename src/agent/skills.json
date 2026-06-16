@@ -110,5 +110,12 @@
     "params": ["action", "task"],
     "upstream": "internal_exec",
     "system_instruction": "Use para decompor tarefas complexas. Antes de executar um plano multi-step: add cada passo. Marque complete após cada execução bem-sucedida. Use list para verificar o que falta."
+  },
+  {
+    "name": "get_context",
+    "description": "Retorna o estado atual do projeto: skills, endpoints, próximos passos e como continuar",
+    "params": [],
+    "upstream": "internal_exec",
+    "system_instruction": "SEMPRE chame esta skill primeiro ao iniciar uma nova sessão. Ela contém o estado completo do projeto, skills disponíveis e o que falta fazer."
   }
 ]

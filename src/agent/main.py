@@ -258,6 +258,36 @@ def _todo_write(params):
 for _n, _f in [("memory_set",_memory_set),("memory_get",_memory_get),("todo_write",_todo_write)]:
     _INTERNAL[_n] = _f
 
+def _get_context(params):
+    # 1. CONTEXT.md do repo (montado junto com main.py se disponível)
+    for candidate in [
+        os.path.join(os.path.dirname(__file__), "..", "CONTEXT.md"),
+        "/context/CONTEXT.md",
+        os.path.join(WORKSPACE, "CONTEXT.md"),
+    ]:
+        path = os.path.normpath(candidate)
+        if os.path.exists(path):
+            with open(path) as f:
+                return 200, {"source": path, "content": f.read()}
+    # 2. fallback: constrói resumo dinâmico do estado atual
+    summary = {
+        "project": "kagenti — skill execution harness with Envoy OBridge sidecar",
+        "repo": "https://github.com/Lucasdoreac/kagenti",
+        "endpoints": ["/healthz", "/skills", "/mcp", "/run", "/chat"],
+        "skills": list(_catalog.keys()),
+        "memory_keys": list(_MEMORY.keys()),
+        "todos": _TODOS,
+        "ollama": {"host": os.environ.get("OLLAMA_HOST","http://host.docker.internal:11434"), "needed_for": "/chat"},
+        "next_steps": [
+            "start ollama + pull gemma3:12b to enable /chat",
+            "rename project (conflicts with Red Hat kagenti)",
+            "create ludoc brand via ferdinandobons/brand-docs",
+        ]
+    }
+    return 200, summary
+
+_INTERNAL["get_context"] = _get_context
+
 # --- executor genérico de skill ---
 def run_skill(name, params, caller=None):
     skill = _catalog.get(name)
