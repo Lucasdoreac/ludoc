@@ -30,13 +30,30 @@ Check "agent /healthz" {
         python3 -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8080/healthz',timeout=5).read().decode())"
     if ($out -notmatch "ok") { throw $out }
 }
-Check "agent /triage patient_id=2" {
+Check "agent /skills retorna catálogo" {
+    $out = kubectl exec deploy/ai-agent-orchestrator -c python -- `
+        python3 -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8080/skills',timeout=5).read().decode())"
+    if ($out -notmatch "get_patient") { throw $out }
+}
+Check "agent /run com X-Delegation-Chain" {
     $out = kubectl exec deploy/ai-agent-orchestrator -c python -- `
         python3 -c "
 import json,urllib.request
-req=urllib.request.Request('http://localhost:8080/triage',data=json.dumps({'patient_id':'2'}).encode(),headers={'Content-Type':'application/json'},method='POST')
+req=urllib.request.Request('http://localhost:8080/run',data=json.dumps({'skill':'get_patient','params':{'patient_id':'2'}}).encode(),headers={'Content-Type':'application/json','X-Delegation-Chain':'ai-agent-orchestrator'},method='POST')
 print(urllib.request.urlopen(req,timeout=5).read().decode())"
-    if ($out -notmatch "ALERTA") { throw $out }
+    if ($out -notmatch "Alan Turing") { throw $out }
+}
+Check "agent /run sem header retorna 403" {
+    $out = kubectl exec deploy/ai-agent-orchestrator -c python -- `
+        python3 -c "
+import json,urllib.request,urllib.error
+req=urllib.request.Request('http://localhost:8080/run',data=json.dumps({'skill':'get_patient','params':{'patient_id':'1'}}).encode(),headers={'Content-Type':'application/json'},method='POST')
+try:
+    urllib.request.urlopen(req,timeout=5)
+    print('FAIL: deveria ter retornado 403')
+except urllib.error.HTTPError as e:
+    print(e.code)"
+    if ($out -notmatch "403") { throw "esperado 403, got: $out" }
 }
 Check "patient-records /patients" {
     $out = kubectl exec deploy/patient-records -- `
