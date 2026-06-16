@@ -5,11 +5,15 @@ function Check($label, $block) {
     catch { Write-Output " [FAIL] $label — $($_.Exception.Message)" }
 }
 
-Write-Output "`n=== kagenti grounding-check ===`n"
+Write-Output "`n=== ludoc grounding-check ===`n"
 
 # Ferramentas
 Check "kubectl no PATH"  { Get-Command kubectl | Out-Null }
 Check "gh no PATH"       { Get-Command gh | Out-Null }
+Check "git remote ludoc" { 
+    $remote = git remote get-url origin
+    if ($remote -notmatch "Lucasdoreac/ludoc") { throw "Remote incorreto: $remote" }
+}
 
 # Cluster
 Check "cluster acessivel" { kubectl get nodes --request-timeout=5s | Out-Null }
@@ -27,7 +31,7 @@ Check "patient-records ready" {
 # Endpoints funcionais
 Check "agent /healthz" {
     $out = kubectl exec deploy/ai-agent-orchestrator -c python -- `
-        python3 -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8080/healthz',timeout=5).read().decode())"
+        python3 -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8080/healthz',timeout=5).read().decode())"        
     if ($out -notmatch "ok") { throw $out }
 }
 Check "agent /skills retorna catálogo" {
@@ -39,7 +43,7 @@ Check "agent /run com X-Delegation-Chain" {
     $out = kubectl exec deploy/ai-agent-orchestrator -c python -- `
         python3 -c "
 import json,urllib.request
-req=urllib.request.Request('http://localhost:8080/run',data=json.dumps({'skill':'get_patient','params':{'patient_id':'2'}}).encode(),headers={'Content-Type':'application/json','X-Delegation-Chain':'ai-agent-orchestrator'},method='POST')
+req=urllib.request.Request('http://localhost:8080/run',data=json.dumps({'skill':'get_patient','params':{'patient_id':'2'}}).encode(),headers={'Content-Type':'application/json','X-Delegation-Chain':'ludoc-orchestrator'},method='POST')
 print(urllib.request.urlopen(req,timeout=5).read().decode())"
     if ($out -notmatch "Alan Turing") { throw $out }
 }

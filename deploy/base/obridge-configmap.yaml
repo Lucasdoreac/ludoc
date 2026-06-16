@@ -29,7 +29,7 @@ data:
                   request_headers_to_add:
                   - header:
                       key: X-Delegation-Chain
-                      value: "ai-agent-orchestrator"
+                      value: "ludoc-orchestrator"
                     keep_empty_value: false
                   routes:
                   - match: {prefix: "/"}

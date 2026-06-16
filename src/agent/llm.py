@@ -2,7 +2,7 @@
 import json, urllib.request, urllib.error, os
 
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://host.docker.internal:11434")
-DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "gemma3:12b")
+DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:0.5b")
 CONTEXT_CHAR_LIMIT = int(os.environ.get("CONTEXT_CHAR_LIMIT", "12000"))  # ~3k tokens
 
 def trim_history(messages: list, limit: int = CONTEXT_CHAR_LIMIT) -> list:

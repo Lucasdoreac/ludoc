@@ -3,7 +3,7 @@
 ## O que é este projeto
 Harness de orquestração de agentes IA soberano (sem cloud). Motor de execução de skills com proxy Envoy (OBridge) como sidecar, arquitetura plugin de skills, e infraestrutura Kind bare metal.
 
-**Repo:** https://github.com/Lucasdoreac/kagenti  
+**Repo:** https://github.com/Lucasdoreac/ludoc  
 **Atenção:** Nome conflita com projeto Red Hat. Renomear está no ROADMAP.md.
 
 ---
@@ -88,7 +88,7 @@ deploy/base/
 
 ```powershell
 # ConfigMap (via arquivos fonte — fonte única da verdade):
-cd kagenti
+cd ludoc
 kubectl create configmap agent-code \
   --from-file=main.py=src/agent/main.py \
   --from-file=skills.json=src/agent/skills.json \
@@ -125,7 +125,7 @@ print(urllib.request.urlopen(req).read().decode())"
 ## Próximos passos (ROADMAP.md)
 
 1. Subir Ollama + `gemma3:12b` → testar `/chat`
-2. Renomear projeto (conflito com kagenti Red Hat)
+2. Renomear projeto (conflito com ludoc Red Hat)
 3. Marca ludoc via BrandDocs (`ferdinandobons/brand-docs`)
 4. CONTEXT.md no formato GSD Core (`open-gsd/gsd-core`)
 5. AlignDev (`razr001/align-dev`) → gerar SKILL.md do projeto

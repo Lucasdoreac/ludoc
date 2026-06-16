@@ -331,8 +331,8 @@ def _get_context(params):
                 return 200, {"source": path, "content": f.read()}
     # 2. fallback: constrói resumo dinâmico do estado atual
     summary = {
-        "project": "kagenti — skill execution harness with Envoy OBridge sidecar",
-        "repo": "https://github.com/Lucasdoreac/kagenti",
+        "project": "ludoc — skill execution harness with Envoy OBridge sidecar",
+        "repo": "https://github.com/Lucasdoreac/ludoc",
         "endpoints": ["/healthz", "/skills", "/mcp", "/run", "/chat"],
         "skills": list(_catalog.keys()),
         "memory_keys": list(_MEMORY.keys()),
@@ -340,7 +340,6 @@ def _get_context(params):
         "ollama": {"host": os.environ.get("OLLAMA_HOST","http://host.docker.internal:11434"), "needed_for": "/chat"},
         "next_steps": [
             "start ollama + pull gemma3:12b to enable /chat",
-            "rename project (conflicts with Red Hat kagenti)",
             "create ludoc brand via ferdinandobons/brand-docs",
         ]
     }

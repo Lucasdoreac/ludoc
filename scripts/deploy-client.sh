@@ -15,8 +15,8 @@ if [[ ! -d "$OVERLAY_PATH" ]]; then
   exit 1
 fi
 
-echo "[kagenti] deploying overlay=${OVERLAY} context=${CONTEXT}"
+echo "[ludoc] deploying overlay=${OVERLAY} context=${CONTEXT}"
 kubectl --context="${CONTEXT}" apply -k "${OVERLAY_PATH}"
 kubectl --context="${CONTEXT}" rollout status deployment/ai-agent-orchestrator --timeout=120s
 kubectl --context="${CONTEXT}" rollout status deployment/patient-records --timeout=120s
-echo "[kagenti] done"
+echo "[ludoc] done"

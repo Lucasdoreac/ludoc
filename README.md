@@ -1,4 +1,4 @@
-# kagenti
+# ludoc
 
 Agente de triagem médica como serviço. Arquitetura: sidecar Envoy (OBridge) + agente Python + API mock de registros.
 
@@ -23,7 +23,7 @@ caller → agente :8080 → Envoy :15001 → patient-records :80
 
 ```sh
 # 1. Clone
-git clone <repo-url> && cd kagenti
+git clone <repo-url> && cd ludoc
 
 # 2. Deploy
 kubectl apply -k deploy/overlays/default

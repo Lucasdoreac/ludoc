@@ -9,7 +9,7 @@
 - Gerar: identidade visual, template de proposta, template de relatório
 - Repositório alvo: `Lucasdoreac/ludoc-brand`
 
-### Renomear kagenti
-- Conflito com projeto Red Hat (`kagenti.com`, `github.com/kagenti`)
+### Renomear ludoc
+- Conflito com projeto Red Hat (`ludoc.com`, `github.com/ludoc`)
 - Novo nome a definir (critério: sigla do nome, domínio técnico, português)
 - Ações: renomear repo GitHub + atualizar referências internas
