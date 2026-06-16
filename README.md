@@ -2,6 +2,18 @@
 
 Agente de triagem médica como serviço. Arquitetura: sidecar Envoy (OBridge) + agente Python + API mock de registros.
 
+## Arquitetura
+
+| Camada | Componente | Função |
+|---|---|---|
+| Logic Plane | `ai-agent-orchestrator` | Agente Python — regras de triagem |
+| Proxy Plane | `OBridge` (Envoy sidecar) | Roteamento e isolamento de rede |
+| Data Plane | `patient-records` | API mock de registros em JSON |
+
+```
+caller → agente :8080 → Envoy :15001 → patient-records :80
+```
+
 ## Pré-requisitos
 
 - `kind` + `kubectl` instalados
