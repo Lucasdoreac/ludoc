@@ -52,6 +52,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         skill_name = body.get("skill")
         params     = body.get("params", {})
         caller     = self.headers.get("X-Delegation-Chain", "unknown")
+        if caller == "unknown":
+            return self.send_json(403, {"error": "missing X-Delegation-Chain — requests must pass through OBridge"})
         if not skill_name:
             return self.send_json(400, {"error": "skill required"})
         code, result = run_skill(skill_name, params, caller)
