@@ -26,6 +26,11 @@ data:
                 virtual_hosts:
                 - name: local_service
                   domains: ["*"]
+                  request_headers_to_add:
+                  - header:
+                      key: X-Delegation-Chain
+                      value: "ai-agent-orchestrator"
+                    keep_empty_value: false
                   routes:
                   - match: {prefix: "/"}
                     route: {cluster: patient_cluster}
