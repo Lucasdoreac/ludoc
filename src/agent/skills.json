@@ -1,0 +1,14 @@
+[
+  {
+    "name": "get_patient",
+    "description": "Busca registro de paciente por ID",
+    "params": ["patient_id"],
+    "upstream": "/patients/{patient_id}"
+  },
+  {
+    "name": "list_patients",
+    "description": "Lista todos os pacientes",
+    "params": [],
+    "upstream": "/patients"
+  }
+]
