@@ -54,5 +54,40 @@
     "params": ["query"],
     "upstream": "internal_exec",
     "system_instruction": "Use para descobrir informações externas antes de tomar decisões. Prefira queries concisas em inglês para melhores resultados."
+  },
+  {
+    "name": "read_file",
+    "description": "Lê o conteúdo de um arquivo no workspace",
+    "params": ["path"],
+    "upstream": "internal_exec",
+    "system_instruction": "Use para inspecionar arquivos antes de modificá-los. path é relativo ao workspace /tmp/workspace ou absoluto."
+  },
+  {
+    "name": "list_dir",
+    "description": "Lista arquivos e diretórios em um caminho",
+    "params": ["path"],
+    "upstream": "internal_exec",
+    "system_instruction": "Use para explorar a estrutura de diretórios antes de criar ou modificar arquivos. path padrão é o workspace."
+  },
+  {
+    "name": "grep",
+    "description": "Busca padrão regex em arquivos do workspace",
+    "params": ["pattern", "path"],
+    "upstream": "internal_exec",
+    "system_instruction": "Use para localizar ocorrências de símbolos, funções ou strings em arquivos. path é opcional — omita para buscar em todo o workspace."
+  },
+  {
+    "name": "glob",
+    "description": "Lista arquivos que correspondem a um padrão glob no workspace",
+    "params": ["pattern"],
+    "upstream": "internal_exec",
+    "system_instruction": "Use para encontrar arquivos por extensão ou nome. Ex: **/*.py lista todos os .py recursivamente."
+  },
+  {
+    "name": "git",
+    "description": "Executa comando git no workspace (status, diff, log, add, commit)",
+    "params": ["command"],
+    "upstream": "internal_exec",
+    "system_instruction": "Use apenas comandos não-destrutivos por padrão (status, diff, log, show). Para add/commit, confirme com o usuário antes. Nunca execute push ou reset --hard sem instrução explícita."
   }
 ]

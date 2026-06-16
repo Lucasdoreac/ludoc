@@ -158,6 +158,71 @@ def _web_search(params):
 _INTERNAL["web_fetch"]  = _web_fetch
 _INTERNAL["web_search"] = _web_search
 
+def _read_file(params):
+    path = params.get("path", "")
+    if not path: return 400, {"error": "path required"}
+    full = path if os.path.isabs(path) else os.path.join(WORKSPACE, path)
+    safe = os.path.normpath(full)
+    try:
+        with open(safe) as f: return 200, {"path": safe, "content": f.read()}
+    except Exception as e: return 500, {"error": str(e)}
+
+def _list_dir(params):
+    path = params.get("path", WORKSPACE)
+    full = path if os.path.isabs(path) else os.path.join(WORKSPACE, path)
+    try:
+        entries = []
+        for e in os.scandir(full):
+            entries.append({"name": e.name, "type": "dir" if e.is_dir() else "file",
+                            "size": e.stat().st_size if e.is_file() else None})
+        return 200, {"path": full, "entries": entries}
+    except Exception as e: return 500, {"error": str(e)}
+
+def _grep(params):
+    pattern = params.get("pattern", "")
+    path    = params.get("path", WORKSPACE)
+    if not pattern: return 400, {"error": "pattern required"}
+    full = path if os.path.isabs(path) else os.path.join(WORKSPACE, path)
+    import re
+    matches = []
+    for root, _, files in os.walk(full):
+        for fname in files:
+            fpath = os.path.join(root, fname)
+            try:
+                with open(fpath, errors="replace") as f:
+                    for i, line in enumerate(f, 1):
+                        if re.search(pattern, line):
+                            matches.append({"file": fpath, "line": i, "text": line.rstrip()})
+                            if len(matches) >= 50: break
+            except: pass
+        if len(matches) >= 50: break
+    return 200, {"pattern": pattern, "matches": matches}
+
+def _glob(params):
+    import glob as _glob
+    pattern = params.get("pattern", "")
+    if not pattern: return 400, {"error": "pattern required"}
+    full_pattern = os.path.join(WORKSPACE, pattern)
+    files = _glob.glob(full_pattern, recursive=True)
+    return 200, {"pattern": pattern, "files": files[:100]}
+
+def _git(params):
+    cmd = params.get("command", "")
+    if not cmd: return 400, {"error": "command required"}
+    # bloqueia operações destrutivas
+    blocked = ["push", "reset --hard", "clean -f", "branch -D"]
+    if any(b in cmd for b in blocked):
+        return 403, {"error": f"blocked: use execute_shell with explicit confirmation"}
+    try:
+        res = subprocess.run(f"git {cmd}", shell=True, capture_output=True,
+                             text=True, cwd=WORKSPACE, timeout=15)
+        return 200, {"stdout": res.stdout, "stderr": res.stderr, "code": res.returncode}
+    except Exception as e: return 500, {"error": str(e)}
+
+for _name, _fn in [("read_file",_read_file),("list_dir",_list_dir),
+                   ("grep",_grep),("glob",_glob),("git",_git)]:
+    _INTERNAL[_name] = _fn
+
 # --- executor genérico de skill ---
 def run_skill(name, params, caller=None):
     skill = _catalog.get(name)
