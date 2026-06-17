@@ -11,4 +11,4 @@ resources:
 #         value: "http://patient-records-cliente-a:80"
 #     target:
 #       kind: Deployment
-#       name: ai-agent-orchestrator
+#       name: ludoc-agent

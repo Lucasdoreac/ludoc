@@ -5,21 +5,16 @@ import re
 _DOMAIN_MAP = {
     "web_fetch":    ["fetch", "url", "http", "download", "página", "site", "curl"],
     "web_search":   ["search", "busca", "pesquisa", "google", "duckduckgo", "encontre"],
-    "execute_shell":["run", "execute", "shell", "bash", "comando", "script", "rode"],
+    "execute_shell":["run", "execute", "shell", "bash", "comando", "script", "rode", "ls", "cat", "grep", "find"],
     "write_file":   ["write", "create", "crie", "escreva", "arquivo", "salve", "gere"],
-    "read_file":    ["read", "leia", "abra", "veja", "conteúdo", "show", "cat"],
-    "list_dir":     ["list", "liste", "diretório", "pasta", "files", "ls"],
-    "grep":         ["grep", "busque", "encontre", "pattern", "regex", "ocorrência"],
-    "glob":         ["glob", "extensão", "*.py", "arquivos", "pattern"],
+    "fs_edit":      ["edit", "change", "replace", "substitua", "altere", "modifique"],
     "validate_code":["valide", "validate", "syntax", "linting", "check", "código"],
-    "git":          ["git", "commit", "diff", "status", "branch", "log"],
-    "memory_set":   ["lembre", "salve", "guarde", "memorize", "armazene"],
-    "memory_get":   ["lembre", "recupere", "recall", "memória", "o que sei"],
-    "todo_write":   ["todo", "tarefa", "plano", "passo", "step", "task"],
     "analyze_dependency_graph": ["grafo", "dependência", "graph", "análise"],
     "get_patient":  ["paciente", "patient", "registro", "record"],
     "list_patients":["pacientes", "patients", "lista", "todos"],
+    "distill_experience": ["distill", "sumário", "lição", "aprendizado", "experiência"],
 }
+
 
 def select(prompt: str, catalog: dict, max_skills: int = 6) -> list:
     """Retorna as skills mais relevantes para o prompt dado."""

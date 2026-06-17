@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ludoc-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ludoc-agent
+  template:
+    metadata:
+      labels:
+        app: ludoc-agent
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+      - name: envoy
+        image: envoyproxy/envoy:v1.26-latest
+        ports:
+        - containerPort: 15001
+        volumeMounts:
+        - name: envoy-config
+          mountPath: /etc/envoy/envoy.yaml
+          subPath: envoy.yaml
+      - name: python
+        image: python:3.11-slim
+        command: ["python3", "/app/main.py"]
+        ports:
+        - containerPort: 8080
+        securityContext:
+          allowPrivilegeEscalation: false
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "256Mi"
+        volumeMounts:
+        - name: agent-code
+          mountPath: /app
+        - name: workspace
+          mountPath: /tmp/workspace
+      volumes:
+      - name: envoy-config
+        configMap:
+          name: obridge-config
+      - name: agent-code
+        configMap:
+          name: ludoc-config
+          items:
+          - key: main.py
+            path: main.py
+          - key: llm.py
+            path: llm.py
+          - key: cleaner.py
+            path: cleaner.py
+          - key: skill_execute_shell.md
+            path: skills/execute_shell/skill.md
+          - key: skill_write_file.md
+            path: skills/write_file/skill.md
+          - key: skill_fs_edit.md
+            path: skills/fs_edit/skill.md
+          - key: skill_validate_code.md
+            path: skills/validate_code/skill.md
+          - key: skill_analyze_dependency_graph.md
+            path: skills/analyze_dependency_graph/skill.md
+          - key: skill_web_search.md
+            path: skills/web_search/skill.md
+          - key: skill_web_fetch.md
+            path: skills/web_fetch/skill.md
+          - key: skill_distill_experience.md
+            path: skills/distill_experience/skill.md
+          - key: skill_get_patient.md
+            path: skills/get_patient/skill.md
+          - key: skill_list_patients.md
+            path: skills/list_patients/skill.md
+      - name: workspace
+        persistentVolumeClaim:
+          claimName: ludoc-workspace-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ludoc-agent
+spec:
+  selector:
+    app: ludoc-agent
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080

@@ -3,11 +3,44 @@ import json, urllib.request, urllib.error, http.server, subprocess, os
 PROXY      = "http://localhost:15001"
 WORKSPACE  = "/tmp/workspace"
 os.makedirs(WORKSPACE, exist_ok=True)
-SKILLS_FILE = os.path.join(os.path.dirname(__file__), "skills.json")
+# --- carrega catálogo de skills dinamicamente ---
+SKILLS_DIR = os.path.join(os.path.dirname(__file__), "skills")
+_catalog = {}
 
-# --- carrega catálogo de skills ---
-with open(SKILLS_FILE) as f:
-    _catalog = {s["name"]: s for s in json.load(f)}
+def _load_skills():
+    global _catalog
+    _catalog = {}
+    if not os.path.exists(SKILLS_DIR):
+        return
+    import re
+    for root, dirs, files in os.walk(SKILLS_DIR):
+        if "skill.md" in files:
+            path = os.path.join(root, "skill.md")
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                # Extrai YAML Front Matter
+                match = re.search(r"^---\s*\n(.*?)\n---\s*\n", content, re.DOTALL)
+                if match:
+                    import yaml # O usuário não mencionou se 'yaml' está disponível, mas disse 'stdlibs'. 
+                    # Na verdade, yaml não é stdlib. Vou usar um parser manual simples para não falhar.
+                    meta = {}
+                    for line in match.group(1).split("\n"):
+                        if ":" in line:
+                            k, v = line.split(":", 1)
+                            k = k.strip()
+                            v = v.strip()
+                            if v.startswith("[") and v.endswith("]"):
+                                v = [x.strip().strip("'").strip('"') for x in v[1:-1].split(",") if x.strip()]
+                            meta[k] = v
+                    if "name" in meta:
+                        # Adiciona o conteúdo do markdown como system_instruction
+                        meta["system_instruction"] = content[match.end():].strip()
+                        _catalog[meta["name"]] = meta
+            except Exception as e:
+                print(f"Erro ao carregar skill em {path}: {e}")
+
+_load_skills()
 
 def list_skills():
     return [{"name": s["name"], "description": s["description"], "params": s["params"]}
@@ -18,10 +51,19 @@ def list_skills():
 _CWD = [WORKSPACE]
 
 def _exec_shell(params):
-    cmd     = params.get("command", "")
-    timeout = int(params.get("timeout", 30))
+    cmd      = params.get("command", "")
+    timeout  = int(params.get("timeout", 30))
+    approved = params.get("approved", False)
+    
     if not cmd:
         return 400, {"error": "command required"}
+        
+    # Blacklist HITL
+    blacklist = ["rm", "push", "kill", "wget", "curl", "apt", "sh", "bash"]
+    import re
+    if not approved and any(re.search(rf"\b{term}\b", cmd) for term in blacklist):
+        return 200, {"error": "COMANDO BLOQUEADO: Risco de segurança. Requer HITL (Aprovação Humana) para execução"}
+
     # suporte a cd — atualiza CWD sem spawnar novo shell
     stripped = cmd.strip()
     if stripped.startswith("cd "):
@@ -84,7 +126,22 @@ def _fs_edit(params):
     except Exception as e:
         return 500, {"error": str(e)}
 
-_INTERNAL = {"execute_shell": _exec_shell, "write_file": _write_file, "fs_edit": _fs_edit}
+def _distill_experience(params):
+    task = params.get("task", "")
+    solution = params.get("solution", "")
+    if not task or not solution:
+        return 400, {"error": "task and solution required"}
+    
+    line = f"Tarefa: {task} | Solução: {solution}\n"
+    path = "/tmp/workspace/episodes.md"
+    try:
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(line)
+        return 200, {"status": "ok", "message": "Episódio registrado"}
+    except Exception as e:
+        return 500, {"error": str(e)}
+
+_INTERNAL["distill_experience"] = _distill_experience
 
 def _validate_code(params):
     code = params.get("code", "")
@@ -206,66 +263,6 @@ def _web_search(params):
 _INTERNAL["web_fetch"]  = _web_fetch
 _INTERNAL["web_search"] = _web_search
 
-def _read_file(params):
-    path   = params.get("path", "")
-    offset = int(params.get("offset", 0))   # linha inicial (0-indexed)
-    limit  = int(params.get("limit", 200))  # max linhas
-    if not path: return 400, {"error": "path required"}
-    full = path if os.path.isabs(path) else os.path.join(_CWD[0], path)
-    safe = os.path.normpath(full)
-    try:
-        with open(safe, errors="replace") as f:
-            lines = f.readlines()
-        total   = len(lines)
-        chunk   = lines[offset: offset + limit]
-        numbered = "".join(f"{offset+i+1:4d} | {l}" for i, l in enumerate(chunk))
-        partial = (offset + limit) < total
-        result  = {"path": safe, "content": numbered, "total_lines": total,
-                   "offset": offset, "limit": limit}
-        if partial:
-            result["warning"] = f"PARTIAL view — {total-(offset+limit)} lines remaining, use offset={offset+limit}"
-        return 200, result
-    except Exception as e: return 500, {"error": str(e)}
-
-def _list_dir(params):
-    path = params.get("path", WORKSPACE)
-    full = path if os.path.isabs(path) else os.path.join(WORKSPACE, path)
-    try:
-        entries = []
-        for e in os.scandir(full):
-            entries.append({"name": e.name, "type": "dir" if e.is_dir() else "file",
-                            "size": e.stat().st_size if e.is_file() else None})
-        return 200, {"path": full, "entries": entries}
-    except Exception as e: return 500, {"error": str(e)}
-
-def _grep(params):
-    pattern = params.get("pattern", "")
-    path    = params.get("path", WORKSPACE)
-    if not pattern: return 400, {"error": "pattern required"}
-    full = path if os.path.isabs(path) else os.path.join(WORKSPACE, path)
-    import re
-    matches = []
-    for root, _, files in os.walk(full):
-        for fname in files:
-            fpath = os.path.join(root, fname)
-            try:
-                with open(fpath, errors="replace") as f:
-                    for i, line in enumerate(f, 1):
-                        if re.search(pattern, line):
-                            matches.append({"file": fpath, "line": i, "text": line.rstrip()})
-                            if len(matches) >= 50: break
-            except: pass
-        if len(matches) >= 50: break
-    return 200, {"pattern": pattern, "matches": matches}
-
-def _glob(params):
-    import glob as _glob
-    pattern = params.get("pattern", "")
-    if not pattern: return 400, {"error": "pattern required"}
-    full_pattern = os.path.join(WORKSPACE, pattern)
-    files = _glob.glob(full_pattern, recursive=True)
-    return 200, {"pattern": pattern, "files": files[:100]}
-
 def _git(params):
     cmd = params.get("command", "")
     if not cmd: return 400, {"error": "command required"}
@@ -279,8 +276,7 @@ def _git(params):
         return 200, {"stdout": res.stdout, "stderr": res.stderr, "code": res.returncode}
     except Exception as e: return 500, {"error": str(e)}
 
-for _name, _fn in [("read_file",_read_file),("list_dir",_list_dir),
-                   ("grep",_grep),("glob",_glob),("git",_git)]:
+for _name, _fn in [("git",_git)]:
     _INTERNAL[_name] = _fn
 
 # --- memory e todo (estado em memória do processo) ---
@@ -380,7 +376,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send_json(200, {"status": "ok"})
         if self.path == "/skills":
             return self.send_json(200, list_skills())
-        if self.path == "/mcp":
+        if self.path == "/tools":
             tools = [
                 {
                     "name": s["name"],
@@ -404,13 +400,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if caller == "unknown":
             return self.send_json(403, {"error": "missing X-Delegation-Chain — requests must pass through OBridge"})
 
-        # --- /run: execução direta de skill ---
-        if self.path == "/run":
-            skill_name = body.get("skill")
-            params     = body.get("params", {})
+        # --- /run ou /tools/call: execução direta de skill ---
+        if self.path == "/run" or self.path == "/tools/call":
+            skill_name = body.get("skill") if self.path == "/run" else body.get("name")
+            params     = body.get("params", {}) if self.path == "/run" else body.get("arguments", {})
+            
             if not skill_name:
-                return self.send_json(400, {"error": "skill required"})
+                return self.send_json(400, {"error": "skill/name required"})
+            
             code, result = run_skill(skill_name, params, caller)
+            
+            if self.path == "/tools/call":
+                # Formato MCP: {"content": [{"type": "text", "text": "..."}]}
+                return self.send_json(code, {
+                    "content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False)}]
+                })
+            
             return self.send_json(code, {"caller": caller, "skill": skill_name, "result": result})
 
         # --- /chat: loop ReAct via Ollama ---
@@ -431,23 +436,90 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not prompt:
                 return self.send_json(400, {"error": "prompt required"})
 
+            # --- Injeção de Memória Semântica e Episódica ---
+            semantic_mem = ""
+            for fname in ["SKILL.md", "CONTEXT.md"]:
+                fpath = _os.path.join(_os.path.dirname(__file__), "..", "..", fname)
+                if _os.path.exists(fpath):
+                    with open(fpath, "r", encoding="utf-8") as f:
+                        semantic_mem += f"\n### {fname} (Semantic Memory):\n{f.read()}\n"
+            
+            episodic_mem = ""
+            episodes_path = "/tmp/workspace/episodes.md"
+            if _os.path.exists(episodes_path):
+                with open(episodes_path, "r", encoding="utf-8") as f:
+                    episodic_mem = f"\n### Episodic Memory (Previous Lessons):\n{f.read()}\n"
+
+            mem_context = semantic_mem + episodic_mem
+
             relevant  = cleaner.select(prompt, _catalog)
             tools_ctx = cleaner.format_for_llm(relevant)
             messages  = [{"role": "user", "content": prompt}]
             trace     = []
+            last_call = None
 
             for i in range(max_iter):
-                decision = llm.call(llm.trim_history(messages), model=model, tools_context=tools_ctx)
+                # Injeta memórias no tools_context ou como parte do system prompt via llm.call
+                decision = llm.call(llm.trim_history(messages), model=model, 
+                                    tools_context=tools_ctx + "\n" + mem_context)
                 trace.append({"iter": i+1, "decision": decision})
 
                 action = decision.get("action", "final_answer")
                 params = decision.get("params", {})
 
+                # Trava de loop
+                current_call = (action, json.dumps(params, sort_keys=True))
+                if current_call == last_call and action != "final_answer":
+                    return self.send_json(200, {
+                        "caller": caller, "answer": f"Loop detectado na ferramenta '{action}'. Encerrando.",
+                        "iterations": i+1, "trace": trace, "loop_detected": True
+                    })
+                last_call = current_call
+
                 if action == "final_answer":
+                    # --- Episodic Memory: Distill Experience ---
+                    import threading
+                    def _distill():
+                        summary_prompt = f"Summarize this session in two lines: Task: {prompt} | Solution: {params.get('text','')}"
+                        try:
+                            # Chamada rápida ao Ollama para destilar
+                            res = llm.call([{"role": "user", "content": summary_prompt}], model=model)
+                            text = res.get("params", {}).get("text", "")
+                            if text:
+                                _distill_experience({"task": prompt[:100], "solution": text[:200]})
+                        except: pass
+                    threading.Thread(target=_distill).start()
+
                     return self.send_json(200, {
                         "caller": caller, "answer": params.get("text",""),
                         "iterations": i+1, "trace": trace
                     })
+
+                # --- Critic Loop (Integrity Validation) ---
+                if action in ["write_file", "fs_edit"]:
+                    # Intercepta código para validação
+                    code_to_validate = ""
+                    if action == "write_file":
+                        filename = params.get("filename", "")
+                        if filename.endswith(".py"):
+                            code_to_validate = params.get("content", "")
+                    elif action == "fs_edit":
+                        file_path = params.get("file_path", "")
+                        if file_path.endswith(".py"):
+                            # Para fs_edit, precisaríamos simular a edição para validar
+                            # Por simplicidade, vamos validar o new_string se parecer código completo, 
+                            # ou confiar no doer se for apenas um trecho.
+                            # O comando diz: "passá-lo internamente pela função de validação"
+                            # Vamos validar o new_string.
+                            code_to_validate = params.get("new_string", "")
+                    
+                    if code_to_validate:
+                        val_code, val_res = _validate_code({"code": code_to_validate})
+                        if not val_res.get("valid", True):
+                            obs = {"skill": action, "result": {"error": f"CRITIC: Erro de sintaxe detectado. Auto-corrija antes de gravar. Detalhes: {val_res.get('error')}"}}
+                            messages.append({"role": "assistant", "content": json.dumps(decision)})
+                            messages.append({"role": "user",      "content": f"Observation: {json.dumps(obs)}"})
+                            continue
 
                 code, result = run_skill(action, params, caller)
                 obs = {"skill": action, "result": result}

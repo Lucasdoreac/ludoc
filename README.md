@@ -1,89 +1,71 @@
-# ludoc
+# Ludoc — Sovereign AI Agent Orchestrator
 
-Agente de triagem médica como serviço. Arquitetura: sidecar Envoy (OBridge) + agente Python + API mock de registros.
+Sovereign AI agent orchestration harness designed for high-integrity, local-first environments. Motorized by Python, secured by Envoy Proxy (OBridge), and compliant with the Model Context Protocol (MCP).
 
-## Arquitetura
+## Core Architecture
 
-| Camada | Componente | Função |
+| Component | Role | Description |
 |---|---|---|
-| Logic Plane | `ai-agent-orchestrator` | Agente Python — regras de triagem |
-| Proxy Plane | `OBridge` (Envoy sidecar) | Roteamento e isolamento de rede |
-| Data Plane | `patient-records` | API mock de registros em JSON |
+| **Ludoc Agent** | Logic Plane | Python agent executing skills with a hardened ReAct loop. |
+| **OBridge** | Proxy Plane | Envoy sidecar enforcing security and `X-Delegation-Chain` headers. |
+| **Workspace** | Data Plane | Persistent sandbox via PVC for agent-generated code and files. |
+| **Mock Records** | Extension | Mock API for patient records used in integration testing. |
 
-```
-caller → agente :8080 → Envoy :15001 → patient-records :80
-```
+## Key Features
 
-## Pré-requisitos
+- **MCP Compliant**: Supports official Model Context Protocol (HTTP transport) via `/tools` and `/tools/call`.
+- **Zero-Trust Hardening**: Pods run as non-root (UID 1000) with strict resource limits and no privilege escalation.
+- **Persistence**: 100Mi PersistentVolumeClaim (PVC) mounted at `/tmp/workspace` for state durability.
+- **Optimized ReAct**: Custom loop for small LLMs (e.g., `qwen2.5:0.5b`) with hard stops for tool call looping.
+- **Sovereign-First**: Built for air-gapped or local clusters (Kind/Bare-Metal) using Ollama.
 
-- `kind` + `kubectl` instalados
-- Cluster Kind ativo (`kind create cluster`)
-
-## Deploy em 5 minutos
+## Quick Start (Deploy in 5m)
 
 ```sh
-# 1. Clone
-git clone <repo-url> && cd ludoc
-
-# 2. Deploy
+# 1. Apply Infrastructure
 kubectl apply -k deploy/overlays/default
 
-# 3. Verifique
-kubectl rollout status deployment/ai-agent-orchestrator
+# 2. Wait for Readiness
+kubectl rollout status deployment/ludoc-agent
 kubectl rollout status deployment/patient-records
 ```
 
-## Testar
+## Validation & Testing
+
+Run the automated grounding check to verify health, skills, and MCP compliance:
+
+```powershell
+# Port-forward the agent service
+kubectl port-forward svc/ludoc-agent 8080:8080
+
+# Execute validation script
+./grounding-check.ps1
+```
+
+### Manual MCP Tool Call Example
 
 ```sh
-# Health check
-kubectl exec deploy/ai-agent-orchestrator -c python -- \
-  python3 -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8080/healthz').read().decode())"
-
-# Triagem de paciente
-kubectl exec deploy/ai-agent-orchestrator -c python -- \
-  python3 -c "
-import json, urllib.request
-req = urllib.request.Request(
-  'http://localhost:8080/triage',
-  data=json.dumps({'patient_id': '2'}).encode(),
-  headers={'Content-Type': 'application/json'}, method='POST')
-print(urllib.request.urlopen(req).read().decode())"
+curl -X POST http://localhost:8080/tools/call \
+  -H "Content-Type: application/json" \
+  -H "X-Delegation-Chain: manual-test" \
+  -d '{
+    "name": "memory_set",
+    "arguments": {"key": "status", "value": "production-ready"}
+  }'
 ```
 
-## Fluxo de dados
+## Repository Structure
 
-```
-caller → agente :8080 → Envoy :15001 → patient-records :80
-```
+- `src/agent/`: Core Python logic, skills catalog, and ReAct loop.
+- `deploy/base/`: K8s manifests (Deployment, PVC, ConfigMaps) — Single Source of Truth.
+- `deploy/overlays/`: Environment-specific configurations (Default, Cliente-A, etc.).
+- `SKILL.md`: Strict AlignDev development rules for agents.
+- `CONTEXT.md`: Project state tracking (GSD Core).
 
-## Estrutura
+## Maintenance
 
-```
-deploy/base/          # manifestos K8s — fonte única da verdade
-deploy/overlays/      # configuração por cliente
-src/agent/            # código do agente + Dockerfile
-src/mock_records/     # API mock + Dockerfile
-scripts/              # deploy-client.sh
-```
+- **Rollback**: `kubectl rollout undo deployment/ludoc-agent`
+- **Cleanup**: `kubectl delete -k deploy/overlays/default`
 
-## Novo cliente
-
-```sh
-cp -r deploy/overlays/default deploy/overlays/<cliente>
-# edite deploy/overlays/<cliente>/kustomization.yaml
-OVERLAY=<cliente> ./scripts/deploy-client.sh
-```
-
-## Kill switch (reverter sem downtime)
-
-```sh
-kubectl rollout undo deployment/ai-agent-orchestrator
-kubectl rollout undo deployment/patient-records
-```
-
-## Remover tudo
-
-```sh
-kubectl delete -k deploy/overlays/default
-```
+---
+*Ludoc — Empowering sovereign intelligence.*

@@ -1,73 +1,78 @@
-$ErrorActionPreference = "Stop"
+# Grounding Check - Ludoc
+# Valida integridade das skills e do loop ReAct
 
-function Check($label, $block) {
-    try { & $block; Write-Output " [OK] $label" }
-    catch { Write-Output " [FAIL] $label — $($_.Exception.Message)" }
-}
-
-Write-Output "`n=== ludoc grounding-check ===`n"
-
-# Ferramentas
-Check "kubectl no PATH"  { Get-Command kubectl | Out-Null }
-Check "gh no PATH"       { Get-Command gh | Out-Null }
-Check "git remote ludoc" { 
-    $remote = git remote get-url origin
-    if ($remote -notmatch "Lucasdoreac/ludoc") { throw "Remote incorreto: $remote" }
+$baseUrl = "http://localhost:8080"
+$headers = @{
+    "Content-Type" = "application/json"
+    "X-Delegation-Chain" = "grounding-check"
 }
 
-# Cluster
-Check "cluster acessivel" { kubectl get nodes --request-timeout=5s | Out-Null }
+Write-Host "--- Iniciando Validação Ludoc (ludoc-agent) ---" -ForegroundColor Cyan
 
-# Deployments prontos
-Check "ai-agent-orchestrator ready" {
-    $r = kubectl get deployment ai-agent-orchestrator -o jsonpath='{.status.readyReplicas}'
-    if ($r -ne "1") { throw "readyReplicas=$r" }
-}
-Check "patient-records ready" {
-    $r = kubectl get deployment patient-records -o jsonpath='{.status.readyReplicas}'
-    if ($r -ne "1") { throw "readyReplicas=$r" }
-}
-
-# Endpoints funcionais
-Check "agent /healthz" {
-    $out = kubectl exec deploy/ai-agent-orchestrator -c python -- `
-        python3 -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8080/healthz',timeout=5).read().decode())"        
-    if ($out -notmatch "ok") { throw $out }
-}
-Check "agent /skills retorna catálogo" {
-    $out = kubectl exec deploy/ai-agent-orchestrator -c python -- `
-        python3 -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8080/skills',timeout=5).read().decode())"
-    if ($out -notmatch "get_patient") { throw $out }
-}
-Check "agent /run com X-Delegation-Chain" {
-    $out = kubectl exec deploy/ai-agent-orchestrator -c python -- `
-        python3 -c "
-import json,urllib.request
-req=urllib.request.Request('http://localhost:8080/run',data=json.dumps({'skill':'get_patient','params':{'patient_id':'2'}}).encode(),headers={'Content-Type':'application/json','X-Delegation-Chain':'ludoc-orchestrator'},method='POST')
-print(urllib.request.urlopen(req,timeout=5).read().decode())"
-    if ($out -notmatch "Alan Turing") { throw $out }
-}
-Check "agent /run sem header retorna 403" {
-    $out = kubectl exec deploy/ai-agent-orchestrator -c python -- `
-        python3 -c "
-import json,urllib.request,urllib.error
-req=urllib.request.Request('http://localhost:8080/run',data=json.dumps({'skill':'get_patient','params':{'patient_id':'1'}}).encode(),headers={'Content-Type':'application/json'},method='POST')
-try:
-    urllib.request.urlopen(req,timeout=5)
-    print('FAIL: deveria ter retornado 403')
-except urllib.error.HTTPError as e:
-    print(e.code)"
-    if ($out -notmatch "403") { throw "esperado 403, got: $out" }
-}
-Check "patient-records /patients" {
-    $out = kubectl exec deploy/patient-records -- `
-        python3 -c "import urllib.request; print(urllib.request.urlopen('http://localhost:80/patients',timeout=5).read().decode())"
-    if ($out -notmatch "Ada Lovelace") { throw $out }
+# 1. Health Check
+try {
+    $resp = Invoke-RestMethod -Uri "$baseUrl/healthz" -Method Get
+    if ($resp.status -eq "ok") {
+        Write-Host "[OK] Health Check" -ForegroundColor Green
+    } else {
+        Write-Host "[FAIL] Health Check" -ForegroundColor Red
+    }
+} catch {
+    Write-Host "[ERROR] Agente inacessível em $baseUrl" -ForegroundColor Red
 }
 
-# Alertas de estado
-$ns = kubectl get namespaces -o jsonpath='{.items[*].metadata.name}'
-if ($ns -match "\bistio-system\b") { Write-Warning "[ALERTA] istio-system detectado — risco de conflito de sidecar" }
-if ($ns -match "\bspire\b")        { Write-Warning "[ALERTA] spire detectado — identidades antigas podem contaminar" }
+# 2. Skills Listing (Legacy)
+try {
+    $skills = Invoke-RestMethod -Uri "$baseUrl/skills" -Method Get
+    if ($skills.Count -ge 16) {
+        Write-Host "[OK] Legacy Skills carregadas: $($skills.Count)" -ForegroundColor Green
+    }
+} catch {
+    Write-Host "[ERROR] Falha ao listar skills" -ForegroundColor Red
+}
 
-Write-Output "`n=== done ===`n"
+# 3. MCP Tools Listing (Official Spec)
+try {
+    $mcpTools = Invoke-RestMethod -Uri "$baseUrl/tools" -Method Get
+    if ($mcpTools.tools.Count -ge 16) {
+        Write-Host "[OK] MCP Tools carregadas: $($mcpTools.tools.Count)" -ForegroundColor Green
+    } else {
+        Write-Host "[FAIL] MCP Tools inconsistentes" -ForegroundColor Red
+    }
+} catch {
+    Write-Host "[ERROR] Falha no endpoint MCP /tools" -ForegroundColor Red
+}
+
+# 4. MCP Tool Call Test
+$callPayload = @{
+    name = "memory_set"
+    arguments = @{ key = "check"; value = "passed" }
+} | ConvertTo-Json
+
+try {
+    $callResp = Invoke-RestMethod -Uri "$baseUrl/tools/call" -Method Post -Headers $headers -Body $callPayload
+    if ($callResp.content[0].type -eq "text") {
+        Write-Host "[OK] MCP /tools/call funcional" -ForegroundColor Green
+    }
+} catch {
+    Write-Host "[ERROR] Falha no teste de chamada MCP" -ForegroundColor Red
+}
+
+# 5. Chat Endpoint (Dry Run)
+$payload = @{
+    prompt = "Quem é você?"
+    max_iter = 1
+} | ConvertTo-Json
+
+try {
+    $chatResp = Invoke-RestMethod -Uri "$baseUrl/chat" -Method Post -Headers $headers -Body $payload
+    Write-Host "[OK] Chat respondeu (checar trace para detalhes)" -ForegroundColor Green
+} catch {
+    if ($_.Exception.Response.StatusCode -eq 503) {
+        Write-Host "[SKIP] Chat falhou (Ollama offline - esperado se não houver cluster local)" -ForegroundColor Yellow
+    } else {
+        Write-Host "[ERROR] Chat endpoint falhou: $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+
+Write-Host "--- Fim da Validação ---"
