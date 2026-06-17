@@ -2,26 +2,23 @@
 
 As an agent operating in this repository, you MUST follow these strict rules to maintain system integrity and security.
 
-## 1. Code Validation
-- **MANDATORY**: Always validate modified Python files using `ast.parse` or `ruff` BEFORE saving.
-- Use the `validate_code` skill if available, or run `python3 -m ast` locally.
-- Never commit code with syntax errors.
+## 1. Code Validation & Critic Loop
+- **MANDATORY**: All mutations to Python files are passed through the `Critic` (automatic syntax and linting check).
+- **Self-Correction**: If the `Critic` rejects your code, read the error output and auto-correct before retrying.
 
-## 2. Security & Delegation
-- **Header Enforcement**: Never ignore or omit the `X-Delegation-Chain` header in local tests or inter-service requests.
-- All requests to `/run` or `/chat` MUST include this header to pass through OBridge.
-- Do not bypass the Envoy sidecar for production-like validations.
+## 2. Security, HITL & AICP
+- **Header Enforcement**: All requests MUST include `X-Delegation-Chain`.
+- **HITL Guard**: Destructive commands (rm, curl, etc.) are blocked by default. You MUST include `approved: true` only after explicit user clearance.
+- **Thinking Facet**: When using RTI skills (e.g., `last30days`), always generate a JSON `--plan` first as dictated by AICP standards.
 
-## 3. Dependency Management
-- **Stdlib First**: Use only native Python standard library dependencies whenever possible.
-- If an external library is required, it must be added to the `Dockerfile` and documented in `CONTEXT.md`.
-- Avoid heavy frameworks; prefer `urllib` over `requests` for core agent logic.
+## 3. Dynamic Skill Lifecycle
+- **Runtime Discovery**: Skills are loaded dynamically from `src/agent/skills/{name}/skill.md`.
+- **Metadata**: Every skill file MUST start with valid YAML Front Matter (name, description, params).
 
-## 4. Atomic Edits
-- Prefer the `fs_edit` skill for surgical changes to existing files.
-- Ensure `old_string` includes enough context to be unique.
-- Always `read_file` before attempting an edit to verify current state and indentation.
+## 4. Atomic Edits (fs_edit)
+- Always `fs_read` before `fs_edit`.
+- `old_string` MUST be unique and include 3-4 lines of context.
 
-## 5. Environment Isolation
-- All file operations must be relative to the sandbox `WORKSPACE` (`/tmp/workspace`) or explicitly allowed project paths.
-- Prevent path traversal by normalizing all input paths.
+## 5. Persistence & I/O
+- Use `/tmp/workspace` for all persistent work.
+- **Episodic Memory**: Always distill successful sessions into `/tmp/workspace/episodes.md` using the `distill_experience` skill.
