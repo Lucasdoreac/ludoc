@@ -11,25 +11,31 @@ spec:
     metadata:
       labels:
         app: ludoc-agent
+      annotations:
+        kubectl.kubernetes.io/default-container: "python"
     spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
-      containers:
-      - name: envoy
-        image: envoyproxy/envoy:v1.26-latest
-        ports:
-        - containerPort: 15001
+      initContainers:
+      - name: init-deps
+        image: python:3.13-slim
+        command: ["/bin/sh", "-c"]
+        args: ["pip install --no-cache-dir --target=/tmp/workspace/deps python-docx python-pptx openpyxl lxml mcp[sse] uvicorn starlette"]
         volumeMounts:
-        - name: envoy-config
-          mountPath: /etc/envoy/envoy.yaml
-          subPath: envoy.yaml
-      - name: python
-        image: python:3.11-slim
-        command: ["python3", "/app/main.py"]
+        - name: workspace
+          mountPath: /tmp/workspace
+      containers:
+      - name: ludoc-agent
+        image: python:3.13-slim
+        command: ["python3", "-u", "/app/src/agent/server.py"]
+        env:
+        - name: PYTHONPATH
+          value: /tmp/workspace/deps
         ports:
         - containerPort: 8080
+          protocol: TCP
         securityContext:
           allowPrivilegeEscalation: false
         resources:
@@ -39,45 +45,25 @@ spec:
           limits:
             cpu: "500m"
             memory: "256Mi"
+        livenessProbe:
+          tcpSocket:
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          tcpSocket:
+            port: 8080
+          initialDelaySeconds: 2
+          periodSeconds: 5
         volumeMounts:
-        - name: agent-code
-          mountPath: /app
+        - name: ludoc-config-volume
+          mountPath: /app/src/agent
         - name: workspace
           mountPath: /tmp/workspace
       volumes:
-      - name: envoy-config
-        configMap:
-          name: obridge-config
-      - name: agent-code
+      - name: ludoc-config-volume
         configMap:
           name: ludoc-config
-          items:
-          - key: main.py
-            path: main.py
-          - key: llm.py
-            path: llm.py
-          - key: cleaner.py
-            path: cleaner.py
-          - key: skill_execute_shell.md
-            path: skills/execute_shell/skill.md
-          - key: skill_write_file.md
-            path: skills/write_file/skill.md
-          - key: skill_fs_edit.md
-            path: skills/fs_edit/skill.md
-          - key: skill_validate_code.md
-            path: skills/validate_code/skill.md
-          - key: skill_analyze_dependency_graph.md
-            path: skills/analyze_dependency_graph/skill.md
-          - key: skill_web_search.md
-            path: skills/web_search/skill.md
-          - key: skill_web_fetch.md
-            path: skills/web_fetch/skill.md
-          - key: skill_distill_experience.md
-            path: skills/distill_experience/skill.md
-          - key: skill_get_patient.md
-            path: skills/get_patient/skill.md
-          - key: skill_list_patients.md
-            path: skills/list_patients/skill.md
       - name: workspace
         persistentVolumeClaim:
           claimName: ludoc-workspace-pvc
@@ -87,9 +73,11 @@ kind: Service
 metadata:
   name: ludoc-agent
 spec:
+  type: NodePort
   selector:
     app: ludoc-agent
   ports:
   - name: http
     port: 8080
     targetPort: 8080
+    nodePort: 30080
