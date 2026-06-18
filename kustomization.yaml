@@ -1,0 +1,34 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deploy/overlays/default
+
+configMapGenerator:
+  - name: ludoc-config
+    files:
+      - cleaner.py=src/agent/cleaner.py
+      - llm.py=src/agent/llm.py
+      - server.py=src/agent/server.py
+      - skill_execute_shell.md=src/agent/skills/execute_shell/skill.md
+      - skill_write_file.md=src/agent/skills/write_file/skill.md
+      - skill_fs_edit.md=src/agent/skills/fs_edit/skill.md
+      - skill_validate_code.md=src/agent/skills/validate_code/skill.md
+      - skill_analyze_dependency_graph.md=src/agent/skills/analyze_dependency_graph/skill.md
+      - skill_web_search.md=src/agent/skills/web_search/skill.md
+      - skill_web_fetch.md=src/agent/skills/web_fetch/skill.md
+      - skill_distill_experience.md=src/agent/skills/distill_experience/skill.md
+      - skill_generate_brand_docs.md=src/agent/skills/brand_docs/skill.md
+      - skill_last30days.md=src/agent/skills/last30days/skill.md
+      - skill_memory_set.md=src/agent/skills/memory_set/skill.md
+      - skill_memory_get.md=src/agent/skills/memory_get/skill.md
+      - skill_todo_write.md=src/agent/skills/todo_write/skill.md
+      - skill_get_context.md=src/agent/skills/get_context/skill.md
+      - skill_git.md=src/agent/skills/git/skill.md
+      - skill_fs_read.md=src/agent/skills/fs_read/skill.md
+      - skill_fs_search.md=src/agent/skills/fs_search/skill.md
+      - skill_python_interpreter.md=src/agent/skills/python_interpreter/skill.md
+      - skill_bridge_mcp.md=src/agent/skills/bridge_mcp/skill.md
+      - skill_security_audit.md=src/agent/skills/security_audit/skill.md
+      - acp_client.py=src/agent/acp_client.py
+      - requirements.txt=src/agent/requirements.txt
