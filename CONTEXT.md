@@ -1,27 +1,42 @@
-# CONTEXT.md — Ludoc (GSD Core)
+# CONTEXT.md — LUDOC (Thinking Engine)
+
+## Multi-Protocol Strategy
+- **MCP**: Primary transport for tool integration.
+- **ACP**: Communication backbone for agent-to-agent negotiation.
+- **ADK**: Developer framework for new agent orchestration.
 
 ## Discuss
-- **Architecture**: AI Agent Orchestrator sovereign (no cloud). Motor in Python, Skills declarative in JSON.
-- **Sidecar**: Envoy Proxy (OBridge) handles security and the `X-Delegation-Chain` header. All POST requests must pass through it.
-- **Brand**: Transitioning to "Ludoc". Name conflict with Red Hat Ludoc exists; renaming is considered.
-- **Decision**: Using `qwen2.5:0.5b` for local testing. Optimized ReAct loop with hard stops for tool looping.
+- **Architecture**: Sovereign AI Agent Orchestrator (Model CoALA).
+- **Inference Strategy**: **A2A (Agent-to-Agent)** optimized for 8GB RAM.
+- **Models**:
+  - **Thinker**: `deepseek-r1:1.5b` (Reasoning/Planning).
+  - **Actor**: `qwen2.5-coder:3b` (Implementation/Coding).
+- **Protocol**: **Multi-Protocol Backbone (MCP+ACP+ADK)** using CoT tags and tiered execution.
+- **Decision**: Moving away from monolithic models to an Execution Ladder.
+
+## Current Status (2026-06-18)
+- **Migration Complete**: Eliminated legacy `main.py`, established `server.py` as single source of truth
+- **20 Skills Operational**: All skills loaded with FastMCP framework + MCP compliance
+- **Multi-Protocol Ready**: MCP-SSE (production), ACP endpoints implemented, ADK patterns established
+- **Deployment Validated**: Kind cluster tested, health checks passing, all endpoints operational
+- **Documentation Updated**: README, SKILL.md, and CONTEXT.md reflect current architecture
 
 ## Plan
 - **Short-term**:
-  - Optimize ReAct reliability for small models.
-  - Integrate AlignDev standards via `SKILL.md`.
-  - Implement basic linting (ast.parse, ruff) in `validate_code` skill.
-- **Medium-term**:
-  - Rename project to avoid conflicts.
-  - Implement full brand documentation.
+  - Continue ACP testing and refinement.
+  - Add more advanced security_audit capabilities.
   - Expand skill catalog for cluster management.
+- **Medium-term**:
+  - Implement full brand documentation generation.
+  - Add monitoring and observability features.
+  - Expand A2A inference patterns.
 
 ## Execute
 1. **Local Setup**:
    - Ensure Kind is running.
    - Run `kubectl apply -k deploy/overlays/default`.
 2. **Local Testing**:
-   - Forward port 8080: `kubectl port-forward deploy/ai-agent-orchestrator 8080:8080`.
+   - Forward port 8080: `kubectl port-forward svc/ludoc-agent 8080:8080`.
    - Test health: `curl http://localhost:8080/healthz`.
 3. **Chat Endpoint**:
    - Requires Ollama at `host.docker.internal:11434`.
