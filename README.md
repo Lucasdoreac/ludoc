@@ -1,3 +1,5 @@
+> **Archived 2026-10-22.** Superseded by [`Lucasdoreac/sober`](https://github.com/Lucasdoreac/sober) (control plane) and [`Lucasdoreac/personal-dev-harness`](https://github.com/Lucasdoreac/personal-dev-harness) (rules and harness). Kept for historical reference only.
+
 # Ludoc — Sovereign AI Agent Orchestrator
 
 **Sovereign AI agent orchestration harness** designed for high-integrity, local-first environments. Motorized by Python FastMCP framework, supporting multi-protocol agent communication (MCP/ACP/ADK), and optimized for enterprise-grade autonomous operations with Actor-Critic architecture.
